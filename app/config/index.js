@@ -232,6 +232,11 @@ function argv(configPath, appVersion) {
 				default: false,
 				describe: 'Sets the user status as away when system goes idle',
 				type: 'boolean'
+			},
+			secondRingDevice: {
+			    default: null,
+			    describe: 'Device used as second ringer. Format: `hw:{card},{device}`; ie: `hw:0,1`.',
+			    type: 'string'
 			}
 		})
 		.parse(process.argv.slice(1));

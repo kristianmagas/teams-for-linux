@@ -40,7 +40,7 @@ let idleTimeUserStatus = -1;
 let player;
 try {
 	// eslint-disable-next-line no-unused-vars
-	const { NodeSound } = require('node-sound');
+	const { NodeSound } = require('./sound');
 	player = NodeSound.getDefaultPlayer();
 } catch (e) {
 	logger.info('No audio players found. Audio notifications might not work.');
@@ -130,7 +130,7 @@ async function playNotificationSound(event, options) {
 
 	if (sound) {
 		logger.debug(`Playing file: ${sound.file}`);
-		await player.play(sound.file);
+		player.play(sound.file, { device: config.secondRingDevice });
 		return;
 	}
 
