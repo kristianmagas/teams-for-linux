@@ -55,6 +55,15 @@ let window = null;
  */
 let appConfig = null;
 
+/*
+ * Player for second ringer device
+ */
+let player;
+try {
+	// eslint-disable-next-line no-unused-vars
+	const { NodeSound } = require('../sound');
+	player = NodeSound.getDefaultPlayer();
+} catch (ex){console.log(ex);}
 /**
  * @param {AppConfiguration} mainConfig 
  */
@@ -539,6 +548,14 @@ async function handleOnIncomingCallCreated(e, data) {
 		const commandArgs = [...config.incomingCallCommandArgs, data.caller];
 		incomingCallCommandProcess = spawn(config.incomingCallCommand, commandArgs);
 	}
+
+	// show window when ringing; should be just a popup, but for now this will do
+	window.show();
+
+	// second ringer; play ringtone for incoming call
+    if (player && config.secondRingDevice) {
+        player.loop(path.join(config.appPath, 'assets/sounds/ring.mp3'), { device: config.secondRingDevice });
+    }
 }
 
 async function incomingCallCommandTerminate() {
@@ -546,6 +563,11 @@ async function incomingCallCommandTerminate() {
 		incomingCallCommandProcess.kill('SIGTERM');
 		incomingCallCommandProcess = null;
 	}
+
+	// second ringer; stop playing ringtone when user answers/declines the call
+    if (player) {
+        player.stop();
+    }
 }
 
 async function handleOnCallConnected() {
@@ -570,6 +592,10 @@ function disableScreenLockWakeLockSentinel() {
 }
 
 async function handleOnCallDisconnected() {
+    // second ringer; stop playing after timeout (no answer)
+    if (player) {
+        player.stop();
+    }
 	isOnCall = false;
 	return config.screenLockInhibitionMethod === 'Electron' ? enableScreenLockElectron() : enableScreenLockWakeLockSentinel();
 }

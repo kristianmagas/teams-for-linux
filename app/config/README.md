@@ -52,6 +52,7 @@ Here is the list of available arguments and its usage:
 | version | show the version number | false |
 | webDebug | Start with the browser developer tools open  |  false |
 | incomingCallCommand | Command to execute on an incoming call | |
+| secondRingDevice | Device used as second ringer. Format: `hw:{card},{device}`; ie: `hw:0,1`. | |
 
 
 As an example, to disable the persistence, you can run the following command:
