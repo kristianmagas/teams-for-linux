@@ -1,8 +1,7 @@
-const { app, ipcMain, BrowserWindow } = require('electron');
+const { app, ipcMain, BrowserWindow, screen } = require('electron');
 let activeWindow = null;
 
-
-exports.hide = function hide(){
+function hide(){
     if(activeWindow){
         try{
             activeWindow.close();
@@ -10,14 +9,20 @@ exports.hide = function hide(){
         activeWindow = null;
     }
 }
+exports.hide = hide;
 
-exports.show = function show(callbackVideo, callbackAudio, callbackReject) {
+exports.show = function show(content, callbackVideo, callbackAudio, callbackReject) {
     hide();
+    const primaryDisplay = screen.getPrimaryDisplay()
 	let win = new BrowserWindow({
-	    x: 0,
-	    y: 0,
+	    x: primaryDisplay.bounds.x + primaryDisplay.bounds.width - 340,
+	    y: primaryDisplay.bounds.y + primaryDisplay.bounds.height - 240,
 		width: 320,
 		height: 220,
+
+		resizable: false,
+		alwaysOnTop: true,
+		frame: false,
 
 		show: false,
 		autoHideMenuBar: true,
@@ -29,12 +34,14 @@ exports.show = function show(callbackVideo, callbackAudio, callbackReject) {
 	require('@electron/remote/main').enable(win.webContents);
 
 	win.once('ready-to-show', () => {
+	    win.webContents.send("set-content", content);
 		win.show();
 	});
 
 	ipcMain.on('call-video', callHandler(callbackVideo));
 	ipcMain.on('call-audio', callHandler(callbackAudio));
 	ipcMain.on('call-reject', callHandler(callbackReject));
+	ipcMain.on('close-popup', hide);
 
 	win.on('closed', () => {
 		win = null;
@@ -47,6 +54,6 @@ exports.show = function show(callbackVideo, callbackAudio, callbackReject) {
 function callHandler(callback) {
 	return (event, data) => {
 	    hide();
-		callback();
+		callback && callback();
 	};
 }
