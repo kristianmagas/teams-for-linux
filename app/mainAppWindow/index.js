@@ -548,8 +548,8 @@ function assignSelectSourceHandler() {
 
 async function handleOnShowIncomingCall(e, data){
     incomingCallWindow.show(data.content,
-        () => {window.webContents.executeJavaScript("window.IncomingCallVideo()", false);},
-        () => {window.webContents.executeJavaScript("window.IncomingCallAudio()", false);},
+        () => {restoreWindow(); window.webContents.executeJavaScript("window.IncomingCallVideo()", false);},
+        () => {restoreWindow(); window.webContents.executeJavaScript("window.IncomingCallAudio()", false);},
         () => {window.webContents.executeJavaScript("window.IncomingCallReject()", false);}
     );
 }
@@ -562,6 +562,9 @@ async function handleOnIncomingCallCreated(e, data) {
 	}
 
 	// show incoming call popup
+    if (window.isMinimized()) { // workaround to display popup when main window is minimized
+        window.restore();
+    }
 	window.webContents.executeJavaScript("window.ShowIncomingCall()", false);
 
 	// second ringer; play ringtone for incoming call
