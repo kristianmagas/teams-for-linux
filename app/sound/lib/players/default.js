@@ -7,14 +7,15 @@ class DefaultPlayer extends NodeSoundPlayer {
 	constructor(command) {
 		super(command);
 		this._process = null;
+		this._loop = false;
 	}
 
 	_startProcess(args, callback){
 	    var proc;
 	    this._killProcess();
 	    proc = this._process = spawn(args[0], args.slice(1));
-        proc.on('close', () => { callback && callback(); this._processEnded()});
-        proc.on('error', () => { callback && callback(); this._processEnded()});
+        proc.on('close', () => { this._processEnded(); callback && callback(); });
+        proc.on('error', () => { this._processEnded(); callback && callback(); });
 	}
 
 	_processEnded(){
@@ -50,15 +51,18 @@ class DefaultPlayer extends NodeSoundPlayer {
 	loop(file, options) {
 	    var that = this;
 	    var opts = options || {};
+	    this._loop = true;
+
 	    opts.callback = () => {
-	        if(this._process){
-	            that.loop(file, options);
+	        if(that._loop){
+	            that.play(file, opts);
 	        }
 	    };
-		this.play(file, options);
+		this.play(file, opts);
 	}
 
 	stop() {
+	    this._loop = false;
 		this._killProcess();
 	}
 }
