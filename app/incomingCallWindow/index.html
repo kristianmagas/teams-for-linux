@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Incoming call</title>
+    <style>
+        * {
+            font-size: calc(1em* .625);
+            line-height: 1.4286;
+            cursor: pointer;
+        }
+        body {
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Web", sans-serif;
+        }
+        #toast-container{
+            width: 100%;
+            height: 100%;
+        }
+        #toast-container * {
+            -moz-box-sizing: border-box;
+            -webkit-box-sizing: border-box;
+            box-sizing: border-box;
+        }
+        #toast-container:hover {
+            cursor: pointer;
+        }
+
+        .toast-wrapper{
+            width: 100%;
+            height: 100%;
+        }
+        .toast-wrapper .toast-close-button {
+            padding: 0;
+            cursor: pointer;
+            background: 0 0;
+            border: 0;
+            -webkit-appearance: none;
+            float: right;
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+            height: 3.2rem;
+            position: absolute;
+            right: 0.5rem;
+            top: 0.5rem;
+            display: none;
+        }
+
+        .toastbody {
+            color: #fff;
+            padding: 1.6rem;
+            word-wrap: break-word;
+            background: #5b5fc7;
+        }
+        .call .toastbody, .meetup .toastbody {
+            height: 22rem;
+        }
+        .toastbody.toast-actions {
+            padding-bottom: 1.2rem;
+        }
+
+        img {
+            border: 0;
+            vertical-align: middle;
+        }
+
+        .toast-wrapper.call .background-image-container {
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            top: -50%;
+            left: -50%;
+            z-index: 0;
+        }
+        .toast-wrapper.call .background-image-container .background-image {
+            object-fit: cover;
+            width: 100%;
+            height: 100%;
+            filter: blur(10px) brightness(.6);
+        }
+
+        .toast-wrapper.call .avatar {
+            position: absolute;
+            top: 0.8rem;
+            left: 0;
+            height: 19.6rem;
+        }
+        .toast-wrapper.meetup-and-call .avatar {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pull-left {
+            float: left !important;
+        }
+        .profile-img-parent {
+            border-radius: 50%;
+            overflow: hidden;
+            background-clip: content-box;
+            height: 3.2rem;
+            width: 3.2rem;
+        }
+        .toast-profile-img {
+            height: 4.8rem
+            width: 4.8rem;
+        }
+        .profile-img-parent img {
+            max-width: 100%;
+            min-height: 100%;
+            min-width: 100%;
+        }
+
+
+        .toast-message {
+            word-wrap: break-word;
+        }
+        .toast-wrapper.call .toast-message {
+            position: absolute;
+            top: 1rem;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+        .toast-wrapper.meetup-and-call .toast-message {
+            margin: 0;
+            padding: 0 0.4rem;
+        }
+
+        .toast-wrapper .toast-icon {
+            height: 3.2rem;
+            position: absolute;
+            right: 0.5rem;
+            top: 0.5rem;
+        }
+        .toast-wrapper:hover .toast-icon {
+            display: none;
+        }
+        .toast-wrapper:hover .toast-close-button {
+            display: block;
+            z-index: 2;
+        }
+        .app-svg, .ts-svg {
+            height: 3.2rem;
+            width: 3.2rem;
+        }
+        .toast-wrapper .icons-default-fill {
+            fill: #fff;
+        }
+
+        .app-max-2-lines-base {
+            display: block;
+            display: -webkit-box;
+            max-height: 4.00008rem;
+            overflow: hidden;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+        .toast-message p {
+            margin: 0;
+            font-size: 1.4rem;
+        }
+        toast-wrapper.meetup-and-call .message, .toast-wrapper.meetup-and-call .subtitle, .toast-wrapper.meetup-and-call .title {
+            overflow: hidden;
+            text-align: center;
+        }
+        .toast-wrapper.meetup-and-call .message, .toast-wrapper.meetup-and-call .title {
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .toast-wrapper.meetup-and-call .subtitle {
+            padding: 1rem 1rem 0;
+            max-height: 9rem;
+            overflow: hidden;
+        }
+
+        .toast-wrapper .actions {
+            align-items: center;
+            bottom: 0.4rem;
+            display: flex;
+            height: 6.4rem;
+            justify-content: center;
+            left: 0;
+            width: 100%;
+            position: absolute;
+            margin-top: 0.8rem;
+        }
+        .toast-wrapper.call .actions {
+            bottom: 1.3rem;
+        }
+        .toast-wrapper.call .call-audio, .toast-wrapper.call .call-reject, .toast-wrapper.call .call-video {
+            display: block;
+            background-color: #5b5fc7;
+            border-radius: 50%;
+            width: 4rem;
+            height: 4rem;
+            box-sizing: content-box;
+            margin: 0 1.2rem 0.8rem;
+            border: 1px solid rgba(0, 0, 0, .1);
+            background-clip: content-box;
+            padding: 0;
+        }
+        .toast-wrapper.call .call-reject {
+            background-color: #c4314b;
+        }
+        .toast-wrapper.call .action-button svg {
+            width: 4rem;
+            height: 4rem;
+        }
+    </style>
+    <script src="renderer-index.js"></script>
+</head>
+
+<body>
+
+
+
+</body>
+
+</html>

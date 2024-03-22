@@ -76,6 +76,38 @@
 		}
 	}
 	window.Notification = CustomNotification;
+
+    // incoming call client functions
+	window.ShowIncomingCall = function(){
+	    var el = document.getElementById('toast-container');
+	    if(el && el.innerHTML.trim()){
+	        ipcRenderer.invoke("show-incoming-call", {content: el.outerHTML});
+	    }
+	    else{
+	        setTimeout(window.ShowIncomingCall, 250);
+	    }
+	};
+	window.IncomingCallVideo = function(){
+	    var holder = document.getElementById('toast-container');
+
+	    if(holder){
+	        holder.getElementsByClassName("call-video")[0].click();
+	    }
+	};
+	window.IncomingCallAudio = function(){
+	    var holder = document.getElementById('toast-container');
+
+	    if(holder){
+	        holder.getElementsByClassName("call-audio")[0].click();
+	    }
+	};
+	window.IncomingCallReject = function(){
+	    var holder = document.getElementById('toast-container');
+
+	    if(holder){
+	        holder.getElementsByClassName("call-reject")[0].click();
+	    }
+	};
 }());
 
 /**
