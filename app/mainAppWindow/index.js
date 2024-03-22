@@ -54,7 +54,10 @@ let window = null;
  * @type {AppConfiguration}
  */
 let appConfig = null;
-
+/*
+ * Incoming call popup window
+ */
+let incomingCallWindow = require("../incomingCallWindow");
 /*
  * Player for second ringer device
  */
@@ -503,6 +506,7 @@ function assignEventHandlers(newWindow) {
 	ipcMain.handle('incoming-call-disconnecting', incomingCallCommandTerminate);
 	ipcMain.handle('call-connected', handleOnCallConnected);
 	ipcMain.handle('call-disconnected', handleOnCallDisconnected);
+	ipcMain.handle("show-incoming-call", handleOnShowIncomingCall);
 	if (config.screenLockInhibitionMethod === 'WakeLockSentinel') {
 		newWindow.on('restore', enableWakeLockOnWindowRestore);
 	}
@@ -542,6 +546,14 @@ function assignSelectSourceHandler() {
 	};
 }
 
+async function handleOnShowIncomingCall(e, data){
+    incomingCallWindow.show(data.content,
+        () => {window.webContents.executeJavaScript("window.IncomingCallVideo()", false);},
+        () => {window.webContents.executeJavaScript("window.IncomingCallAudio()", false);},
+        () => {window.webContents.executeJavaScript("window.IncomingCallReject()", false);}
+    );
+}
+
 async function handleOnIncomingCallCreated(e, data) {
 	if (config.incomingCallCommand) {
 		incomingCallCommandTerminate();
@@ -549,8 +561,8 @@ async function handleOnIncomingCallCreated(e, data) {
 		incomingCallCommandProcess = spawn(config.incomingCallCommand, commandArgs);
 	}
 
-	// show window when ringing; should be just a popup, but for now this will do
-	window.show();
+	// show incoming call popup
+	window.webContents.executeJavaScript("window.ShowIncomingCall()", false);
 
 	// second ringer; play ringtone for incoming call
     if (player && config.secondRingDevice) {
@@ -564,6 +576,8 @@ async function incomingCallCommandTerminate() {
 		incomingCallCommandProcess = null;
 	}
 
+    // hide incoming call popup
+    incomingCallWindow.hide();
 	// second ringer; stop playing ringtone when user answers/declines the call
     if (player) {
         player.stop();
@@ -592,6 +606,8 @@ function disableScreenLockWakeLockSentinel() {
 }
 
 async function handleOnCallDisconnected() {
+    // hide incoming call popup
+    incomingCallWindow.hide();
     // second ringer; stop playing after timeout (no answer)
     if (player) {
         player.stop();
