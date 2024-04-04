@@ -39,12 +39,16 @@ class ActivityHub {
 	}
 
 	start() {
-		instance.whenReady().then(assignEventHandlers);
+		instance.whenReady().then(assignEventHandlers).catch(() => {
+			console.error('Failed to start Activity Hub by assigning Event Handlers');
+		});
 	}
 
 	setDefaultTitle(title) {
 		instance.whenReady().then(inst => {
 			inst.controller.pageTitleDefault = title;
+		}).catch(() => {
+			console.error('Failed to set Default Title');
 		});
 	}
 
@@ -52,13 +56,31 @@ class ActivityHub {
 	 * @param {number} state 
 	 */
 	setMachineState(state) {
-		instance.whenReady().then((inst) => {
-			if (state === 1) {
-				this.refreshAppState(inst.controller, state);
-			} else {
-				inst.controller.appStateService.setMachineState(state);
+		const teams2IdleTracker = instance.getTeams2IdleTracker();
+		if (teams2IdleTracker) {
+			try {
+				console.log(`setMachineState teams2 state=${state}`);
+				if (state === 1) {
+					// ALTERNATIVE: teams2IdleTracker._idleStateBehaviorSubject.next('Active');
+					teams2IdleTracker.handleMonitoredWindowEvent();
+				} else {
+					// ALTERNATIVE: teams2IdleTracker._idleStateBehaviorSubject.next('Inactive');
+					teams2IdleTracker.transitionToIdle();
+				}
+			} catch(e) {
+				console.error('Failed to set teams2 Machine State', e);
 			}
-		});
+		} else {
+			instance.whenReady().then((inst) => {
+				if (state === 1) {
+					this.refreshAppState(inst.controller, state);
+				} else {
+					inst.controller.appStateService.setMachineState(state);
+				}
+			}).catch(() => {
+				console.error('Failed to set Machine State');
+			});
+		}
 	}
 
 	/**
@@ -68,6 +90,8 @@ class ActivityHub {
 	setUserStatus(status) {
 		instance.whenReady().then((inst) => {
 			inst.injector.get('presenceService').setMyStatus(status, null, true);
+		}).catch(() => {
+			console.error('Failed to set User Status');
 		});
 	}
 
