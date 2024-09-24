@@ -1,4 +1,6 @@
 const { app, ipcMain, BrowserWindow } = require('electron');
+const { execSync } = require('child_process');
+
 let isFirstLoginTry = true;
 
 exports.loginService = function loginService(parentWindow, callback) {
@@ -31,12 +33,23 @@ exports.loginService = function loginService(parentWindow, callback) {
 	win.loadURL(`file://${__dirname}/login.html`);
 };
 
-exports.handleLoginDialogTry = function handleLoginDialogTry(window) {
-	window.webContents.on('login', (event, request, authInfo, callback) => {
+exports.handleLoginDialogTry = function handleLoginDialogTry(window, {ssoBasicAuthUser, ssoBasicAuthPasswordCommand}) {
+	window.webContents.on('login', (event, _request, _authInfo, callback) => {
 		event.preventDefault();
 		if (isFirstLoginTry) {
 			isFirstLoginTry = false;
-			this.loginService(window, callback);
+			if (ssoBasicAuthUser && ssoBasicAuthPasswordCommand) {
+				console.debug(`Retrieve password using command : ${ssoBasicAuthPasswordCommand}`);
+				try {
+					const ssoPassword = execSync(ssoBasicAuthPasswordCommand).toString();
+					callback(ssoBasicAuthUser, ssoPassword);
+				} catch (error) {
+					console.error(`Failed to execute ssoBasicAuthPasswordCommand. Status Code: ${error.status} with '${error.message}'`);
+				}
+			} else {
+				console.debug("Using dialogue window.");
+				this.loginService(window, callback);
+			}
 		} else {
 			// if fails to authenticate we need to relanch the app as we have close the login browser window.
 			isFirstLoginTry = true;
@@ -47,7 +60,7 @@ exports.handleLoginDialogTry = function handleLoginDialogTry(window) {
 };
 
 function submitFormHandler(callback, win) {
-	return (event, data) => {
+	return (_event, data) => {
 		callback(data.username, data.password);
 		win.close();
 	};

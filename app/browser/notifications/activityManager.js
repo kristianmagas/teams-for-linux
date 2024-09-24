@@ -1,27 +1,11 @@
-const TrayIconRenderer = require('../tools/trayIconRenderer');
 const activityHub = require('../tools/activityHub');
 const wakeLock = require('../tools/wakeLock');
 
 class ActivityManager {
-	/**
-	 * @param {Electron.IpcRenderer} ipcRenderer 
-	 * @param {./config} config
-	 */
 	constructor(ipcRenderer, config) {
 		this.ipcRenderer = ipcRenderer;
-		this.iconRenderer = new TrayIconRenderer(config);
 		this.config = config;
 		this.myStatus = -1;
-	}
-
-	updateActivityCount(count) {
-		this.iconRenderer.render(count).then(icon => {
-			this.ipcRenderer.send('tray-update', {
-				icon: icon,
-				flash: (count > 0 && !this.config.disableNotificationWindowFlash)
-			});
-		});
-		this.ipcRenderer.invoke('set-badge-count', count);
 	}
 
 	start() {
@@ -34,16 +18,33 @@ class ActivityManager {
 
 	watchSystemIdleState() {
 		const self = this;
-		self.ipcRenderer.invoke('getSystemIdleState').then((state) => {
-			activityHub.setMachineState(state.system === 'active' ? 1 : 2);
-			const timeOut = (state.system === 'active' ? self.config.appIdleTimeoutCheckInterval : self.config.appActiveCheckInterval) * 1000;
-
+		self.ipcRenderer.invoke('get-system-idle-state').then((state) => {
+			let timeOut;
 			if (this.config.awayOnSystemIdle) {
+				/*
+					Same logic as before: 
+						awayOnSystemIdle = true, sets status "Away" when screen is locked.
+				*/
+				activityHub.setMachineState(state.system === 'active' ? 1 : 2);
+				timeOut = (state.system === 'active' ? self.config.appIdleTimeoutCheckInterval : self.config.appActiveCheckInterval) * 1000;
+
 				if (state.system === 'active' && state.userIdle === 1) {
 					activityHub.setUserStatus(1);
 				} else if (state.system !== 'active' && state.userCurrent === 1) {
 					activityHub.setUserStatus(3);
 				}
+			} else {
+				/*
+					Handle screen locked: 
+						awayOnSystemIdle = false, keeps status "Available" when locking the screen.
+				*/
+				if ((state.system === 'active') || (state.system === 'locked')) {
+					activityHub.setMachineState(1);
+					timeOut = self.config.appIdleTimeoutCheckInterval * 1000;
+				} else {
+					activityHub.setMachineState(2);
+					timeOut = self.config.appActiveCheckInterval * 1000;
+				}			
 			}
 
 			setTimeout(() => self.watchSystemIdleState(), timeOut);
@@ -51,11 +52,8 @@ class ActivityManager {
 	}
 }
 
-/**
- * @param {ActivityManager} self 
- */
 function setActivityHandlers(self) {
-	activityHub.on('activities-count-updated', updateActivityCountHandler(self));
+	activityHub.on('activities-count-updated', updateActivityCountHandler());
 	activityHub.on('incoming-call-created', incomingCallCreatedHandler(self));
 	activityHub.on('incoming-call-connecting', incomingCallConnectingHandler(self));
 	activityHub.on('incoming-call-disconnecting', incomingCallDisconnectingHandler(self));
@@ -65,71 +63,48 @@ function setActivityHandlers(self) {
 	activityHub.on('my-status-changed', myStatusChangedHandler(self));
 }
 
-/**
- * @param {ActivityManager} self 
- */
 function setEventHandlers(self) {
 	self.ipcRenderer.on('enable-wakelock', () => wakeLock.enable());
 	self.ipcRenderer.on('disable-wakelock', () => wakeLock.disable());
 }
 
-/**
- * @param {ActivityManager} self 
- */
-function updateActivityCountHandler(self) {
+function updateActivityCountHandler() {
 	return async (data) => {
-		self.updateActivityCount(data.count);
+		const event = new CustomEvent('unread-count', { detail: { number: data.count } });
+		window.dispatchEvent(event);
 	};
 }
 
-/**
- * @param {ActivityManager} self 
- */
 function incomingCallCreatedHandler(self) {
 	return async (data) => {
 		self.ipcRenderer.invoke('incoming-call-created', data);
 	};
 }
 
-/**
- * @param {ActivityManager} self 
- */
 function incomingCallConnectingHandler(self) {
 	return async () => {
 		self.ipcRenderer.invoke('incoming-call-connecting');
 	};
 }
 
-/**
- * @param {ActivityManager} self 
- */
 function incomingCallDisconnectingHandler(self) {
 	return async () => {
 		self.ipcRenderer.invoke('incoming-call-disconnecting');
 	};
 }
 
-/**
- * @param {ActivityManager} self 
- */
 function callConnectedHandler(self) {
 	return async () => {
 		self.ipcRenderer.invoke('call-connected');
 	};
 }
 
-/**
- * @param {ActivityManager} self 
- */
 function callDisconnectedHandler(self) {
 	return async () => {
 		self.ipcRenderer.invoke('call-disconnected');
 	};
 }
 
-/**
- * @param {ActivityManager} self 
- */
 // eslint-disable-next-line no-unused-vars
 function meetingStartNotifyHandler(self) {
 	if (!self.config.disableMeetingNotifications) {
@@ -142,9 +117,6 @@ function meetingStartNotifyHandler(self) {
 	return null;
 }
 
-/**
- * @param {ActivityManager} self 
- */
 // eslint-disable-next-line no-unused-vars
 function myStatusChangedHandler(self) {
 	// eslint-disable-next-line no-unused-vars

@@ -29,8 +29,8 @@ let disableAutogain = function () {
 		constraint[name] = value;
 	}
 	function disableAutogain(constraints) {
-		console.log('Automatically unsetting gain!', constraints);
-		if (constraints && constraints.audio) {
+		console.debug('Automatically unsetting gain!', constraints);
+		if (constraints?.audio) {
 			if (typeof constraints.audio !== 'object') {
 				constraints.audio = {};
 			}
@@ -45,8 +45,7 @@ let disableAutogain = function () {
 
 	function patchFunction(object, name, createNewFunction) {
 		if (name in object) {
-			var original = object[name];
-			object[name] = createNewFunction(original);
+			object[name] = createNewFunction(object[name]);
 		}
 	}
 
@@ -71,7 +70,7 @@ let disableAutogain = function () {
 			return original.call(this, constraints);
 		};
 	});
-	console.log(
+	console.debug(
 		'Disable Autogain by Joey Watts!',
 		navigator.mediaDevices.getUserMedia
 	);

@@ -3,17 +3,418 @@
 	<id>com.github.IsmaelMartinez.teams_for_linux</id>
 	<metadata_license>CC0-1.0</metadata_license>
 	<project_license>GPL-3.0</project_license>
-	<name>teams-for-linux</name>
-	<summary>Unofficial Microsoft Teams client for Linux using Electron</summary>
+	<name>Portal for Teams</name>
+	<summary>Unofficial Microsoft Teams client for Linux</summary>
 	<description>
-		<p>Unofficial Microsoft Teams client for Linux using Electron.</p>
-		<p>It uses the Web App and wraps it as a standalone application using Electron.</p>
+		<p>Experience seamless integration with the Microsoft Teams Web App in a standalone Electron application.</p>
+		<p>This application is an unofficial client for Microsoft Teams.</p>
 	</description>
 	<url type="homepage">https://github.com/IsmaelMartinez/teams-for-linux</url>
 	<url type="help">https://github.com/IsmaelMartinez/teams-for-linux/blob/develop/KNOWN_ISSUES.md</url>
 	<url type="bugtracker">https://github.com/IsmaelMartinez/teams-for-linux/issues</url>
 	<launchable type="desktop-id">com.github.IsmaelMartinez.teams_for_linux.desktop</launchable>
 	<releases>
+		<release version="1.11.0" date="2024-09-24">
+			<description>
+				<ul>
+					<li>Increase electron version to 32.1.2 and electron build to 25.0.5</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.10.3" date="2024-09-23">
+			<description>
+				<ul>
+					<li>Moving the notification number to be in the bottom right hand side of the icon</li>
+				</ul>
+			</description>
+		</release>		
+		<release version="1.10.2" date="2024-09-10">
+			<description>
+				<ul>
+					<li>Add support to simulate Windows-based Chromium Browser</li>
+				</ul>
+			</description>
+		</release>		
+		<release version="1.10.1" date="2024-09-09">
+			<description>
+				<ul>
+					<li>Added support for OpenSUSE to rpm distribution</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.10.0" date="2024-09-03">
+			<description>
+				<ul>
+					<li>Changing the T4L icons to comply with Flathub policies</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.9.6" date="2024-09-02">
+			<description>
+				<ul>
+					<li>refine disabling gpu and fix render-process-gone logging</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.9.5" date="2024-08-23">
+			<description>
+				<ul>
+					<li>Fix Incomplete regular expression for hostnames for github scanning in ms teams url</li>
+					<li>Printing the render-process-gone reason to help analyse #1369</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.9.4" date="2024-08-23">
+			<description>
+				<ul>
+					<li>Update the logger to be `electron-log` by default, and update the documentation, as the config options don't seem to overwrite the logger</li>
+					<li>Adding a new conditional for msteams meeting invites to handle the differences between v1 and v2</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.9.3" date="2024-08-23">
+			<description>
+				<ul>
+					<li>Revert the default url to be teams v1, not v2.</li>
+					<li>Update the logger to be `console` by default, as the documentation indicates</li>
+					<li>Update electron from  30.2.0 to 30.4.0</li>
+					<li>Update electron from  eslint and global libraries</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.9.2" date="2024-08-22">
+			<description>
+				<ul>
+					<li>Add --class flag to allow setting the WM_CLASS property to a custom value</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.9.1" date="2024-08-20">
+			<description>
+				<ul>
+					<li>Apply disableHardwareAcceleration on disableGpu flag</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.9.0" date="2024-07-19">
+			<description>
+				<ul>
+					<li>Moving from lucid-log to electron-log</li>
+					<li>Adding --logConfig option to allow choosing between console, electron-log or Falsy (no logs in console)</li>
+					<li>Adding --help option to show the config options</li>
+					<li>Deprecating --appLogLevels in favor of --logConfig</li>
+					<li>Adding deprecated warning popup if deprecated options found to be in use</li>
+					<li>Refactoring the customBackground service and including an example</li>
+					<li>Updating electron to 30.2.0, and other small dependency updates</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.8.1" date="2024-07-10">
+			<description>
+				<ul>
+					<li>Fix awayOnSystemIdle behaviour when locking the screen: now it shows status as "Available" when locking the screen with awayOnSystemIdle = false</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.8.0" date="2024-07-08">
+			<description>
+				<ul>
+					<li>Increase electron version to 30.1.2</li>
+					<li>Fix handleOnCallConnected not calling disable screen lock</li>
+					<li>Adding contextIsolation and sandbox config options. These will break some functionality but are added as a WIP to help assessing what it would break</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.7.5" date="2024-07-02">
+			<description>
+				<ul>
+					<li>Add watchConfigFile option to restart the app if the configuration changes</li>
+					<li>Modify configError message to have an icon and adding the ability to provide warning dialogs (for config deprecations)</li>
+					<li>Changing app description to be more flathub compliat</li>
+					<li>Refactoring around inTune and the config file handling</li>
+					<li>Refactoring events to all be kebab-case instead of a mix of kebab-case and camelCase</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.7.4" date="2024-06-25">
+			<description>
+				<ul>
+					<li>FIX broken screen sharing during calls</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.7.3" date="2024-06-18">
+			<description>
+				<ul>
+					<li>App renamed to Portal for Teams in flathub</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.7.2" date="2024-06-14">
+			<description>
+				<ul>
+					<li>Moved to sonarcloud from codacity and fixed some sonarcloud issues</li>
+					<li>Moved from deprecated v2 version of codeql to v3</li>
+					<li>Added disableGlobalShortcuts config option to disable global shortcuts</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.7.1" date="2024-06-11">
+			<description>
+				<ul>
+					<li>Adding a meetupJoinRegEx config option to handle meetup-join/channel regular expressions</li>
+					<li>Aligning setWindowOpenHandler and processArgs to use the meetupJoinRegEx config option</li>
+					<li>Small linting fixes for css files</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.7.0" date="2024-06-09">
+			<description>
+				<ul>
+					<li>General small refactoring work</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.6.1" date="2024-06-07">
+			<description>
+				<ul>
+					<li>FIX missing icon in alt-tab</li>
+					<li>Improve tweaks css file, to hide the "waffle" menu and align the logo</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.6.0" date="2024-06-06">
+			<description>
+				<ul>
+					<li>FIX broken app when dbus not present</li>
+					<li>Moved from Yarn to NPM to simplify the build process</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.5.3" date="2024-06-04">
+			<description>
+				<ul>
+					<li>Add support for Single Sign On using Microsoft Intune</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.5.2" date="2024-05-28">
+			<description>
+				<ul>
+					<li>Adding --rpm-digest=sha256 to fix RPM insatll on FIPS enabled system</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.5.1" date="2024-05-28">
+			<description>
+				<ul>
+					<li>Adding teams.live.com to the URLs evaluated across the app</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.5.0" date="2024-05-28">
+			<description>
+				<ul>
+					<li>Renaming ssoUser to ssoBasicAuthUser,  and ssoPasswordCommand to ssoBasicAuthPassswordCommand.</li>
+					<li>Adding the config option trayIconEnabled that defaults to true</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.40" date="2024-05-24">
+			<description>
+				<ul>
+					<li>Adding ssoUser and ssoPasswordCommand to allow to bypass needing to add your password.</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.39" date="2024-05-07">
+			<description>
+				<ul>
+					<li>Don't show error in case of missing config file.</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.38" date="2024-05-06">
+			<description>
+				<ul>
+					<li>Show error message if configuration is invalid</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.37" date="2024-05-04">
+			<description>
+				<ul>
+					<li>Fix awayOnSystemIdle flag in Teams V2</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.36" date="2024-05-03">
+			<description>
+				<ul>
+					<li>Fix custom backgrounds in Teams V2</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.35" date="2024-05-03">
+			<description>
+				<ul>
+					<li>Fix for away status detection (idle tracking)</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.34" date="2024-05-01">
+			<description>
+				<ul>
+					<li>Electron version downgraded to 29.3.0 due to inconsistent behaviour in different desktop environments</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.33" date="2024-04-29">
+			<description>
+				<ul>
+					<li>Electron version upgraded to 30.0.1</li>
+					<li>Updated implementation of Notification.requestPermission()</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.32" date="2024-04-28">
+			<description>
+				<ul>
+					<li>
+						Revert "Build universal app for Mac" - the unsigned package does not run on Apple Silicon.
+						See KNOWN_ISSUES.md for steps how to build the app for Apple Silicon locally.
+					</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.31" date="2024-04-25">
+			<description>
+				<ul>
+					<li>Add isCustomBackgroundEnabled config option that defaults to true</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.30" date="2024-04-24">
+			<description>
+				<ul>
+					<li>Enable useMutationTitleLogic by default</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.29" date="2024-04-22">
+			<description>
+				<ul>
+					<li>Build universal app for Mac, to support Apple Silicon as well as Intel Macs</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.28" date="2024-04-17">
+			<description>
+				<ul>
+					<li>Electron version upgraded to 30.0.0</li>
+					<li>Clicking on notification shows the application</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.27" date="2024-04-15">
+			<description>
+				<ul>
+					<li>Rearranged quit menu</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.26" date="2024-04-14">
+			<description>
+				<ul>
+					<li>Added menu option to choose notification urgency</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.25" date="2024-04-14">
+			<description>
+				<ul>
+					<li>Now lets user choose the notification method and urgency</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.24" date="2024-04-13">
+			<description>
+				<ul>
+					<li>Support for electron CLI flags in config file</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.23" date="2024-04-12">
+			<description>
+				<ul>
+					<li>Additional logs for debugging custom background issues</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.22" date="2024-04-12">
+			<description>
+				<ul>
+					<li>Electron version upgraded to 29.3.0</li>
+					<li>Fix: Teams doesn't remember the setting disable notification sound</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.21" date="2024-04-07">
+			<description>
+				<ul>
+					<li>Electron version upgraded to 29.2.0</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.20" date="2024-04-06">
+			<description>
+				<ul>
+					<li>Now the notification badge count clears when all are read</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.19" date="2024-04-05">
+			<description>
+				<ul>
+					<li>updating tray icon with the number in the document.title. This is hidden behind a feature flag/config option called useMutationTitleLogic</li>
+					<li>moved trayIconRenderer out of the activityHub, and to react to events instead.</li>
+					<li>re-order config readme to show in the right order.</li>
+					<li>removing the 'removal' of the opt in for teamsv2. Now if you use that feature flag and want to revert you will need to do it manually.</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.18" date="2024-04-04">
+			<description>
+				<ul>
+					<li>adding how to debug in bug report, moving react logic into its own ha… by @IsmaelMartinez in #1176</li>
+					<li>Feature/teams v2 changes theme by @IsmaelMartinez in #1177</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.17" date="2024-03-31">
+			<description>
+				<ul>
+					<li>feat: add opt in handling for teams v2 by @mhenselin in #1160</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.16" date="2024-03-28">
+			<description>
+				<ul>
+					<li>Removing the angular recurring call to disable some promotions as I s… by @IsmaelMartinez in #1152</li>
+					<li>Hotfix/remove recurring angular call by @IsmaelMartinez in #1153</li>
+					<li>Hotfix/remove recurring angular call by @IsmaelMartinez in #1154</li>
+					<li>add support for changing idle (away) state in Teams2 by @bastidest in #1157</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.4.15" date="2024-03-23">
+			<description>
+				<ul>
+					<li>Added bail out logic to the angular detection as this is creating some memory issues in some users</li>
+				</ul>
+			</description>
+		</release>
 		<release version="1.4.14" date="2024-03-11">
 			<description>
 				<ul>
@@ -879,9 +1280,9 @@
 			<description>
 				<p>
 					While we wait for Microsoft... Here we go, we are now version 1.0.0 🍾🎉
-					
+
 					This release has been focus on fixing small issues, improving config options (specially for proxy),
-					adding some bots to help automation, adding more functionality to the right click button 
+					adding some bots to help automation, adding more functionality to the right click button
 					and automatically place your downloads into the download folder (opt in feature)
 				</p>
 				<ul>
@@ -904,13 +1305,13 @@
 				</ul>
 				<p>
 					Thanks to @standagh, @emanuelbatista, @jef79m and everybody that created issues/enhancements, fixed and/or tested them.
-					
+
 					Special thanks to @julian-alarcon for continuously supporting the snap version of this project and to anyone else that is supporting other package types.
-					
+
 					Thanks also to @byteSamurai for introducing hacktoverfest. I manage to get a t-shirt and to get a few people on my team to also contribute.
-					
+
 					Its been a long ride, and looks like Microsoft has heard us out loud, but until they got something working as stable as this, I will continue contributing.
-					
+
 					Release notes partly done by Stamp.
 				</p>
 			</description>

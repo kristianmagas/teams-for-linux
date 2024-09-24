@@ -1,89 +1,63 @@
 require('@electron/remote/main').initialize();
-const { shell, BrowserWindow, ipcMain, app, session, nativeTheme, powerSaveBlocker, dialog, webFrameMain, Notification } = require('electron');
-const isDarkMode = nativeTheme.shouldUseDarkColors;
-const windowStateKeeper = require('electron-window-state');
+const { shell, app, nativeTheme, dialog, webFrameMain, Notification } = require('electron');
 const path = require('path');
 const login = require('../login');
 const customCSS = require('../customCSS');
 const Menus = require('../menus');
-const { StreamSelector } = require('../streamSelector');
-const { LucidLog } = require('lucid-log');
 const { SpellCheckProvider } = require('../spellCheckProvider');
-const { httpHelper } = require('../helpers');
-const { execFile, spawn } = require('child_process');
+const { execFile } = require('child_process');
 const TrayIconChooser = require('../browser/tools/trayIconChooser');
 // eslint-disable-next-line no-unused-vars
 const { AppConfiguration } = require('../appConfiguration');
 const connMgr = require('../connectionManager');
 const fs = require('fs');
+const BrowserWindowManager = require('../mainAppWindow/browserWindowManager');
 
-/**
- * @type {TrayIconChooser}
- */
 let iconChooser;
-
-let blockerId = null;
-
-let isOnCall = false;
-
+let intune;
 let isControlPressed = false;
-
-let incomingCallCommandProcess = null;
-
 let lastNotifyTime = null;
-
-/**
- * @type {URL}
- */
-let customBGServiceUrl;
-
-/**
- * @type {LucidLog}
- */
-let logger;
-
 let aboutBlankRequestCount = 0;
 let config;
-
-/**
- * @type {BrowserWindow}
- */
 let window = null;
-
-/**
- * @type {AppConfiguration}
- */
 let appConfig = null;
-/*
- * Incoming call popup window
- */
-let incomingCallWindow = require("../incomingCallWindow");
-/*
- * Player for second ringer device
- */
-let player;
-try {
-	// eslint-disable-next-line no-unused-vars
-	const { NodeSound } = require('../sound');
-	player = NodeSound.getDefaultPlayer();
-} catch (ex){console.log(ex);}
-/**
- * @param {AppConfiguration} mainConfig 
- */
-exports.onAppReady = async function onAppReady(mainConfig) {
-	appConfig = mainConfig;
-	config = mainConfig.startupConfig;
-	iconChooser = new TrayIconChooser(mainConfig.startupConfig);
-	logger = new LucidLog({
-		levels: config.appLogLevels.split(',')
+//let player;
+//try {
+//	// eslint-disable-next-line no-unused-vars
+//	const { NodeSound } = require('../sound');
+//	player = NodeSound.getDefaultPlayer();
+//} catch (ex){console.log(ex);}
+let customBackgroundService = null;
+
+exports.onAppReady = async function onAppReady(configGroup, customBackground) {
+	appConfig = configGroup;
+	config = configGroup.startupConfig;
+	customBackgroundService = customBackground;
+
+	if (config.ssoInTuneEnabled) {
+		intune = require('../intune');
+		intune.initSso(config.ssoInTuneAuthUser);
+	}
+
+	if (config.trayIconEnabled) {
+		iconChooser = new TrayIconChooser(config);
+	}
+
+	const browserWindowManager = new BrowserWindowManager({
+		config: config,
+		iconChooser: iconChooser
 	});
 
-	window = await createWindow();
-
-	const m = new Menus(window, config, iconChooser.getFile());
-	m.onSpellCheckerLanguageChanged = onSpellCheckerLanguageChanged;
-
+	window = await browserWindowManager.createWindow();
+	
+	if (iconChooser) {	
+		const m = new Menus(window, configGroup, iconChooser.getFile());
+		m.onSpellCheckerLanguageChanged = onSpellCheckerLanguageChanged;
+	}
+	
 	addEventHandlers();
+
+	login.handleLoginDialogTry(window, {'ssoBasicAuthUser': config.ssoBasicAuthUser, 'ssoBasicAuthPasswordCommand': config.ssoBasicAuthPasswordCommand});
 
 	const url = processArgs(process.argv);
 	connMgr.start(url, {
@@ -100,8 +74,12 @@ function onSpellCheckerLanguageChanged(languages) {
 
 let allowFurtherRequests = true;
 
+exports.show = function(){
+	window.show();
+};
+
 exports.onAppSecondInstance = function onAppSecondInstance(event, args) {
-	logger.debug('second-instance started');
+	console.debug('second-instance started');
 	if (window) {
 		event.preventDefault();
 		const url = processArgs(args);
@@ -115,17 +93,12 @@ exports.onAppSecondInstance = function onAppSecondInstance(event, args) {
 	}
 };
 
-/**
- * Applies the configuration passed as arguments when executing the app.
- * @param config Configuration object.
- * @param {BrowserWindow} window The browser window.
- */
 function applyAppConfiguration(config, window) {
 	applySpellCheckerConfiguration(config.spellCheckerLanguages, window);
 
 	if (typeof config.clientCertPath !== 'undefined' && config.clientCertPath !== '') {
 		app.importCertificate({ certificate: config.clientCertPath, password: config.clientCertPassword }, (result) => {
-			logger.info('Loaded certificate: ' + config.clientCertPath + ', result: ' + result);
+			console.info('Loaded certificate: ' + config.clientCertPath + ', result: ' + result);
 		});
 	}
 
@@ -146,33 +119,31 @@ function applyAppConfiguration(config, window) {
 
 function handleTeamsV2OptIn(config) {
 	if (config.optInTeamsV2) {
-		config.url = 'https://teams.microsoft.com/v2/';
+		setConfigUrlTeamsV2(config);
 		window.webContents.executeJavaScript('localStorage.getItem("tmp.isOptedIntoT2Web");', true)
 			.then(result => {
 				if ((result == null) || !result) {
 					window.webContents.executeJavaScript('localStorage.setItem("tmp.isOptedIntoT2Web", true);', true)
 						.then(window.reload())
 						.catch(err => {
-							console.log('could not set localStorage variable', err);
+							console.debug('could not set localStorage variable', err);
 						});
 				}
 			})
 			.catch(err => {
-				console.log('could not read localStorage variable', err);
+				console.debug('could not read localStorage variable', err);
 			});
-		return;
 	}
-	window.webContents.executeJavaScript('localStorage.removeItem("tmp.isOptedIntoT2Web");', true)
-		.then(window.reload());
 }
 
-/**
- * Applies Electron's spell checker capabilities if language codes are provided.
- * @param {Array<string>} languages Array of language codes to use with spell checker.
- * @param {BrowserWindow} window The browser window.
- */
+function setConfigUrlTeamsV2(config) {
+	if(!config.url.includes('/v2')) {
+		config.url = config.url+'/v2/';
+	}
+}
+
 function applySpellCheckerConfiguration(languages, window) {
-	const spellCheckProvider = new SpellCheckProvider(window, logger);
+	const spellCheckProvider = new SpellCheckProvider(window);
 	if (spellCheckProvider.setLanguages(languages).length == 0 && languages.length > 0) {
 		// If failed to set user supplied languages, fallback to system locale.
 		const systemList = [app.getLocale()];
@@ -184,7 +155,7 @@ function applySpellCheckerConfiguration(languages, window) {
 }
 
 function onDidFinishLoad() {
-	logger.debug('did-finish-load');
+	console.debug('did-finish-load');
 	window.webContents.executeJavaScript(`
 			openBrowserButton = document.querySelector('[data-tid=joinOnWeb]');
 			openBrowserButton && openBrowserButton.click();
@@ -209,7 +180,7 @@ function initSystemThemeFollow(config) {
 }
 
 function onDidFrameFinishLoad(event, isMainFrame, frameProcessId, frameRoutingId) {
-	logger.debug('did-frame-finish-load', event, isMainFrame);
+	console.debug('did-frame-finish-load', event, isMainFrame);
 
 	if (isMainFrame) {
 		return; // We want to insert CSS only into the Teams V2 content iframe
@@ -234,33 +205,34 @@ function restoreWindow() {
 }
 
 function processArgs(args) {
-	var regHttps = /^https:\/\/teams.microsoft.com\/l\/(meetup-join|channel)\//g;
-	var regMS = /^msteams:\/l\/(meetup-join|channel)\//g;
-	logger.debug('processArgs:', args);
+	const v1msTeams = /^msteams:\/l\/(?:meetup-join|channel)/g;
+	const v2msTeams = /^msteams:\/\/teams\.microsoft\.com\/l\/(?:meetup-join|channel)/g;
+	console.debug('processArgs:', args);
 	for (const arg of args) {
-		if (regHttps.test(arg)) {
-			logger.debug('A url argument received with https protocol');
+		console.debug(`testing RegExp processArgs ${new RegExp(config.meetupJoinRegEx).test(arg)}`);
+		if (new RegExp(config.meetupJoinRegEx).test(arg)) {
+			console.debug('A url argument received with https protocol');
 			window.show();
 			return arg;
-		}
-		if (regMS.test(arg)) {
-			logger.debug('A url argument received with msteams protocol');
+		} 
+		if (v1msTeams.test(arg)) {
+			console.debug('A url argument received with msteams v1 protocol');
 			window.show();
 			return config.url + arg.substring(8, arg.length);
+		} 
+		if (v2msTeams.test(arg)) {
+			console.debug('A url argument received with msteams v2 protocol');
+			window.show();
+			return arg.replace('msteams', 'https');
 		}
 	}
 }
 
-/**
- * @param {Electron.OnBeforeRequestListenerDetails} details 
- * @param {Electron.CallbackResponse} callback 
- */
 function onBeforeRequestHandler(details, callback) {
-	if (details.url.startsWith('https://statics.teams.cdn.office.net/teams-for-linux/custom-bg/')) {
-		const reqUrl = details.url.replace('https://statics.teams.cdn.office.net/teams-for-linux/custom-bg/', '');
-		const imgUrl = getBGRedirectUrl(reqUrl);
-		logger.debug(`Forwarding '${details.url}' to '${imgUrl}'`);
-		callback({ redirectURL: imgUrl });
+	const customBackgroundRedirect = customBackgroundService.beforeRequestHandlerRedirectUrl(details);
+
+	if (customBackgroundRedirect) {
+		callback(customBackgroundRedirect);
 	}
 	// Check if the counter was incremented
 	else if (aboutBlankRequestCount < 1) {
@@ -268,7 +240,7 @@ function onBeforeRequestHandler(details, callback) {
 		callback({});
 	} else {
 		// Open the request externally
-		logger.debug('DEBUG - webRequest to  ' + details.url + ' intercepted!');
+		console.debug('DEBUG - webRequest to  ' + details.url + ' intercepted!');
 		//shell.openExternal(details.url);
 		writeUrlBlockLog(details.url);
 		// decrement the counter
@@ -277,76 +249,40 @@ function onBeforeRequestHandler(details, callback) {
 	}
 }
 
-function getBGRedirectUrl(rel) {
-	return httpHelper.joinURLs(customBGServiceUrl.href, rel);
-}
-
-/**
- * @param {Electron.OnHeadersReceivedListenerDetails} details 
- * @param {Electron.HeadersReceivedResponse} callback 
- */
 function onHeadersReceivedHandler(details, callback) {
-	if (details.responseHeaders['content-security-policy']) {
-		const policies = details.responseHeaders['content-security-policy'][0].split(';');
-		setImgSrcSecurityPolicy(policies);
-		setConnectSrcSecurityPolicy(policies);
-		details.responseHeaders['content-security-policy'][0] = policies.join(';');
-	}
+	customBackgroundService.onHeadersReceivedHandler(details);
 	callback({
 		responseHeaders: details.responseHeaders
 	});
 }
 
-function setConnectSrcSecurityPolicy(policies) {
-	const connectsrcIndex = policies.findIndex(f => f.indexOf('connect-src') >= 0);
-	if (connectsrcIndex >= 0) {
-		policies[connectsrcIndex] = policies[connectsrcIndex] + ` ${customBGServiceUrl.origin}`;
-	}
-}
-
-function setImgSrcSecurityPolicy(policies) {
-	const imgsrcIndex = policies.findIndex(f => f.indexOf('img-src') >= 0);
-	if (imgsrcIndex >= 0) {
-		policies[imgsrcIndex] = policies[imgsrcIndex] + ` ${customBGServiceUrl.origin}`;
-	}
-}
-
-/**
- * @param {Electron.OnBeforeSendHeadersListenerDetails} detail 
- * @param {Electron.BeforeSendResponse} callback 
- */
 function onBeforeSendHeadersHandler(detail, callback) {
-	if (detail.url.startsWith(customBGServiceUrl.href)) {
-		detail.requestHeaders['Access-Control-Allow-Origin'] = '*';
+	if (intune?.isSsoUrl(detail.url)) {
+		intune.addSsoCookie(detail, callback);
+	} else {
+		customBackgroundService.addCustomBackgroundHeaders(detail, callback);
+		
+		callback({
+			requestHeaders: detail.requestHeaders
+		});
 	}
-	callback({
-		requestHeaders: detail.requestHeaders
-	});
 }
 
-/**
- * @param {Electron.HandlerDetails} details 
- * @returns {{action: 'deny'} | {action: 'allow', outlivesOpener?: boolean, overrideBrowserWindowOptions?: Electron.BrowserWindowConstructorOptions}}
- */
 function onNewWindow(details) {
-	if (details.url.startsWith('https://teams.microsoft.com/l/meetup-join')) {
-		logger.debug('DEBUG - captured meetup-join url');
+	console.debug(`testing RegExp onNewWindow ${new RegExp(config.meetupJoinRegEx).test(details.url)}`);
+	if (new RegExp(config.meetupJoinRegEx).test(details.url)) {
+		console.debug('DEBUG - captured meetup-join url');
 		return { action: 'deny' };
 	} else if (details.url === 'about:blank' || details.url === 'about:blank#blocked') {
 		// Increment the counter
 		aboutBlankRequestCount += 1;
-
-		logger.debug('DEBUG - captured about:blank');
-
+		console.debug('DEBUG - captured about:blank');
 		return { action: 'deny' };
 	}
 
 	return secureOpenLink(details);
 }
 
-/**
- * @param {string} url 
- */
 async function writeUrlBlockLog(url) {
 	const curBlockTime = new Date();
 	const logfile = path.join(appConfig.configPath, 'teams-for-linux-blocked.log');
@@ -363,33 +299,29 @@ async function writeUrlBlockLog(url) {
 	}
 }
 
-/**
- * @param {Error} e 
- */
 function onLogStreamError(e) {
 	if (e) {
-		logger.error(e.message);
+		console.error(`onLogStreamError ${e.message}`);
 	}
 }
 
-function onPageTitleUpdated(event, title) {
+function onPageTitleUpdated(_event, title) {
 	window.webContents.send('page-title', title);
 }
 
 function onWindowClosed() {
-	logger.debug('window closed');
+	console.debug('window closed');
 	window = null;
 	app.quit();
 }
 
 function addEventHandlers() {
-	initializeCustomBGServiceURL();
+	customBackgroundService.initializeCustomBGServiceURL();
 	window.on('page-title-updated', onPageTitleUpdated);
 	window.webContents.setWindowOpenHandler(onNewWindow);
 	window.webContents.session.webRequest.onBeforeRequest({ urls: ['https://*/*'] }, onBeforeRequestHandler);
 	window.webContents.session.webRequest.onHeadersReceived({ urls: ['https://*/*'] }, onHeadersReceivedHandler);
 	window.webContents.session.webRequest.onBeforeSendHeaders(getWebRequestFilterFromURL(), onBeforeSendHeadersHandler);
-	login.handleLoginDialogTry(window);
 	window.webContents.on('did-finish-load', onDidFinishLoad);
 	window.webContents.on('did-frame-finish-load', onDidFrameFinishLoad);
 	window.on('closed', onWindowClosed);
@@ -397,45 +329,26 @@ function addEventHandlers() {
 }
 
 function getWebRequestFilterFromURL() {
-	const filter = customBGServiceUrl.protocol === 'http:' ? { urls: ['http://*/*'] } : { urls: ['https://*/*'] };
+	const filter = customBackgroundService.isCustomBackgroundHttpProtocol() ? { urls: ['http://*/*'] } : { urls: ['https://*/*'] };
+	if (intune) {
+		intune.setupUrlFilter(filter);
+	}
+	
 	return filter;
 }
 
-function initializeCustomBGServiceURL() {
-	try {
-		customBGServiceUrl = new URL('', config.customBGServiceBaseUrl);
-		logger.debug(`Custom background service url is '${config.customBGServiceBaseUrl}'`);
-	}
-	catch (err) {
-		logger.error(`Invalid custom background service url '${config.customBGServiceBaseUrl}', updating to default 'http://localhost'`);
-		customBGServiceUrl = new URL('', 'http://localhost');
-	}
-}
-
-
-/**
- * @param {Electron.Event} event 
- * @param {Electron.Input} input 
- */
-function onBeforeInput(event, input) {
+function onBeforeInput(_event, input) {
 	isControlPressed = input.control;
 }
 
-/**
- * @param {Electron.HandlerDetails} details 
- * @returns {{action: 'deny'} | {action: 'allow', outlivesOpener?: boolean, overrideBrowserWindowOptions?: Electron.BrowserWindowConstructorOptions}}
- */
 function secureOpenLink(details) {
-	logger.debug(`Requesting to open '${details.url}'`);
+	console.debug(`Requesting to open '${details.url}'`);
 	const action = getLinkAction();
 
 	if (action === 0) {
 		openInBrowser(details);
 	}
 
-	/**
-	 * @type {{action: 'deny'} | {action: 'allow', outlivesOpener?: boolean, overrideBrowserWindowOptions?: Electron.BrowserWindowConstructorOptions}}
-	 */
 	const returnValue = action === 1 ? {
 		action: 'allow',
 		overrideBrowserWindowOptions: {
@@ -462,7 +375,7 @@ function openInBrowser(details) {
 
 function openInBrowserErrorHandler(error) {
 	if (error) {
-		logger.error(error.message);
+		console.error(`openInBrowserErrorHandler ${error.message}`);
 	}
 }
 
@@ -482,7 +395,7 @@ function getLinkAction() {
 }
 
 async function removePopupWindowMenu() {
-	for (var i = 1; i <= 200; i++) {
+	for (let i = 1; i <= 200; i++) {
 		await sleep(10);
 		const childWindows = window.getChildWindows();
 		if (childWindows.length) {
@@ -490,178 +403,53 @@ async function removePopupWindowMenu() {
 			break;
 		}
 	}
-	return;
 }
 
 async function sleep(ms) {
 	return await new Promise(r => setTimeout(r, ms));
 }
 
-async function createWindow() {
-	// Load the previous state with fallback to defaults
-	const windowState = windowStateKeeper({
-		defaultWidth: 0,
-		defaultHeight: 0,
-	});
+//async function handleOnIncomingCallCreated(e, data) {
+//	if (config.incomingCallCommand) {
+//		incomingCallCommandTerminate();
+//		const commandArgs = [...config.incomingCallCommandArgs, data.caller];
+//		incomingCallCommandProcess = spawn(config.incomingCallCommand, commandArgs);
+//	}
+//
+//	// show incoming call popup
+//    if (window.isMinimized()) { // workaround to display popup when main window is minimized
+//        window.restore();
+//    }
+//	window.webContents.executeJavaScript("window.ShowIncomingCall()", false);
+//
+//	// second ringer; play ringtone for incoming call
+//    if (player && config.secondRingDevice) {
+//        player.loop(path.join(config.appPath, 'assets/sounds/ring.mp3'), { device: config.secondRingDevice });
+//    }
+//}
 
-	if (config.clearStorage) {
-		const defSession = session.fromPartition(config.partition);
-		await defSession.clearStorageData();
-	}
+//async function incomingCallCommandTerminate() {
+//	if (incomingCallCommandProcess) {
+//		incomingCallCommandProcess.kill('SIGTERM');
+//		incomingCallCommandProcess = null;
+//	}
+//
+//    // hide incoming call popup
+//    incomingCallWindow.hide();
+//	// second ringer; stop playing ringtone when user answers/declines the call
+//    if (player) {
+//        player.stop();
+//    }
+//}
 
-	// Create the window
-	const window = createNewBrowserWindow(windowState);
-	require('@electron/remote/main').enable(window.webContents);
-	assignEventHandlers(window);
 
-	windowState.manage(window);
-
-	window.eval = global.eval = function () { // eslint-disable-line no-eval
-		throw new Error('Sorry, this app does not support window.eval().');
-	};
-
-	return window;
-}
-
-function assignEventHandlers(newWindow) {
-	ipcMain.on('select-source', assignSelectSourceHandler());
-	ipcMain.handle('incoming-call-created', handleOnIncomingCallCreated);
-	ipcMain.handle('incoming-call-connecting', incomingCallCommandTerminate);
-	ipcMain.handle('incoming-call-disconnecting', incomingCallCommandTerminate);
-	ipcMain.handle('call-connected', handleOnCallConnected);
-	ipcMain.handle('call-disconnected', handleOnCallDisconnected);
-	ipcMain.handle("show-incoming-call", handleOnShowIncomingCall);
-	if (config.screenLockInhibitionMethod === 'WakeLockSentinel') {
-		newWindow.on('restore', enableWakeLockOnWindowRestore);
-	}
-}
-
-function createNewBrowserWindow(windowState) {
-	return new BrowserWindow({
-		title: 'Teams for Linux',
-		x: windowState.x,
-		y: windowState.y,
-
-		width: windowState.width,
-		height: windowState.height,
-		backgroundColor: isDarkMode ? '#302a75' : '#fff',
-
-		show: false,
-		autoHideMenuBar: config.menubar == 'auto',
-		icon: iconChooser.getFile(),
-
-		webPreferences: {
-			partition: config.partition,
-			preload: path.join(__dirname, '..', 'browser', 'index.js'),
-			plugins: true,
-			contextIsolation: false,
-			sandbox: false,
-			spellcheck: true
-		},
-	});
-}
-
-function assignSelectSourceHandler() {
-	return event => {
-		const streamSelector = new StreamSelector(window);
-		streamSelector.show((source) => {
-			event.reply('select-source', source);
-		});
-	};
-}
-
-async function handleOnShowIncomingCall(e, data){
-    incomingCallWindow.show(data.content,
-        () => {restoreWindow(); window.webContents.executeJavaScript("window.IncomingCallVideo()", false);},
-        () => {restoreWindow(); window.webContents.executeJavaScript("window.IncomingCallAudio()", false);},
-        () => {window.webContents.executeJavaScript("window.IncomingCallReject()", false);}
-    );
-}
-
-async function handleOnIncomingCallCreated(e, data) {
-	if (config.incomingCallCommand) {
-		incomingCallCommandTerminate();
-		const commandArgs = [...config.incomingCallCommandArgs, data.caller];
-		incomingCallCommandProcess = spawn(config.incomingCallCommand, commandArgs);
-	}
-
-	// show incoming call popup
-    if (window.isMinimized()) { // workaround to display popup when main window is minimized
-        window.restore();
-    }
-	window.webContents.executeJavaScript("window.ShowIncomingCall()", false);
-
-	// second ringer; play ringtone for incoming call
-    if (player && config.secondRingDevice) {
-        player.loop(path.join(config.appPath, 'assets/sounds/ring.mp3'), { device: config.secondRingDevice });
-    }
-}
-
-async function incomingCallCommandTerminate() {
-	if (incomingCallCommandProcess) {
-		incomingCallCommandProcess.kill('SIGTERM');
-		incomingCallCommandProcess = null;
-	}
-
-    // hide incoming call popup
-    incomingCallWindow.hide();
-	// second ringer; stop playing ringtone when user answers/declines the call
-    if (player) {
-        player.stop();
-    }
-}
-
-async function handleOnCallConnected() {
-	isOnCall = true;
-	return config.screenLockInhibitionMethod === 'Electron' ? disableScreenLockElectron() : disableScreenLockWakeLockSentinel();
-}
-
-function disableScreenLockElectron() {
-	var isDisabled = false;
-	if (blockerId == null) {
-		blockerId = powerSaveBlocker.start('prevent-display-sleep');
-		logger.debug(`Power save is disabled using ${config.screenLockInhibitionMethod} API.`);
-		isDisabled = true;
-	}
-	return isDisabled;
-}
-
-function disableScreenLockWakeLockSentinel() {
-	window.webContents.send('enable-wakelock');
-	logger.debug(`Power save is disabled using ${config.screenLockInhibitionMethod} API.`);
-	return true;
-}
-
-async function handleOnCallDisconnected() {
-    // hide incoming call popup
-    incomingCallWindow.hide();
-    // second ringer; stop playing after timeout (no answer)
-    if (player) {
-        player.stop();
-    }
-	isOnCall = false;
-	return config.screenLockInhibitionMethod === 'Electron' ? enableScreenLockElectron() : enableScreenLockWakeLockSentinel();
-}
-
-function enableScreenLockElectron() {
-	var isEnabled = false;
-	if (blockerId != null && powerSaveBlocker.isStarted(blockerId)) {
-		logger.debug(`Power save is restored using ${config.screenLockInhibitionMethod} API`);
-		powerSaveBlocker.stop(blockerId);
-		blockerId = null;
-		isEnabled = true;
-	}
-	return isEnabled;
-}
-
-function enableScreenLockWakeLockSentinel() {
-	window.webContents.send('disable-wakelock');
-	logger.debug(`Power save is restored using ${config.screenLockInhibitionMethod} API`);
-	return true;
-}
-
-function enableWakeLockOnWindowRestore() {
-	if (isOnCall) {
-		window.webContents.send('enable-wakelock');
-	}
-}
+//async function handleOnCallDisconnected() {
+//    // hide incoming call popup
+//    incomingCallWindow.hide();
+//    // second ringer; stop playing after timeout (no answer)
+//    if (player) {
+//        player.stop();
+//    }
+//	isOnCall = false;
+//	return config.screenLockInhibitionMethod === 'Electron' ? enableScreenLockElectron() : enableScreenLockWakeLockSentinel();
+//}

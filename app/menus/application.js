@@ -29,7 +29,15 @@ exports = module.exports = (Menus) => ({
 		{
 			type: 'separator',
 		},
-		getQuitMenu(Menus),
+		{
+			label: 'Quit',
+			accelerator: 'ctrl+Q',
+			click: () => Menus.quit()
+		},
+		{
+			label: 'Quit (Clear Storage)',
+			click: () => Menus.quit(true)
+		},
 		{
 			type: 'separator',
 		},
@@ -56,23 +64,6 @@ function getSettingsMenu(Menus) {
 	};
 }
 
-function getQuitMenu(Menus) {
-	return {
-		label: 'Quit',
-		submenu: [
-			{
-				label: 'Normally',
-				accelerator: 'ctrl+Q',
-				click: () => Menus.quit()
-			},
-			{
-				label: 'Clear Storage',
-				click: () => Menus.quit(true)
-			}
-		]
-	};
-}
-
 function getNotificationsMenu(Menus) {
 	return {
 		label: 'Notifications',
@@ -80,32 +71,55 @@ function getNotificationsMenu(Menus) {
 			{
 				label: 'Disable All Notifications',
 				type: 'checkbox',
-				checked: Menus.config.disableNotifications,
-				click: () => Menus.config.disableNotifications = !Menus.config.disableNotifications
+				checked: Menus.configGroup.startupConfig.disableNotifications,
+				click: () => Menus.toggleDisableNotifications()
 			},
 			{
 				label: 'Disable Meeting Notifications',
 				type: 'checkbox',
-				checked: Menus.config.disableMeetingNotifications,
-				click: () => Menus.config.disableMeetingNotifications = !Menus.config.disableMeetingNotifications
+				checked: Menus.configGroup.startupConfig.disableMeetingNotifications,
+				click: () => Menus.toggleDisableMeetingNotifications()
 			},
 			{
 				label: 'Disable Notifications Sound',
 				type: 'checkbox',
-				checked: Menus.config.disableNotificationSound,
-				click: () => Menus.config.disableNotificationSound = !Menus.config.disableNotificationSound
+				checked: Menus.configGroup.startupConfig.disableNotificationSound,
+				click: () => Menus.toggleDisableNotificationSound()
 			},
 			{
 				label: 'Disable Sound when Not Available (e.g: busy, in a call)',
 				type: 'checkbox',
-				checked: Menus.config.disableNotificationSoundIfNotAvailable,
-				click: () => Menus.config.disableNotificationSoundIfNotAvailable = !Menus.config.disableNotificationSoundIfNotAvailable
+				checked: Menus.configGroup.startupConfig.disableNotificationSoundIfNotAvailable,
+				click: () => Menus.toggleDisableNotificationSoundIfNotAvailable()
 			},
 			{
 				label: 'Disables Window Flash on New Notifications',
 				type: 'checkbox',
-				checked: Menus.config.disableNotificationWindowFlash,
-				click: () => Menus.config.disableNotificationWindowFlash = !Menus.config.disableNotificationWindowFlash
+				checked: Menus.configGroup.startupConfig.disableNotificationWindowFlash,
+				click: () => Menus.toggleDisableNotificationWindowFlash()
+			},
+			{
+				label: 'Urgency',
+				submenu:[
+					{
+						label: 'Low',
+						type: 'checkbox',
+						checked: Menus.configGroup.startupConfig.defaultNotificationUrgency === 'low',
+						click: () => Menus.setNotificationUrgency('low')
+					},
+					{
+						label: 'Normal',
+						type: 'checkbox',
+						checked: Menus.configGroup.startupConfig.defaultNotificationUrgency === 'normal',
+						click: () => Menus.setNotificationUrgency('normal')
+					},
+					{
+						label: 'Critical',
+						type: 'checkbox',
+						checked: Menus.configGroup.startupConfig.defaultNotificationUrgency === 'critical',
+						click: () => Menus.setNotificationUrgency('critical')
+					}
+				]
 			}
 		]
 	};

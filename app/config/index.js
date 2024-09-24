@@ -1,24 +1,39 @@
 const yargs = require('yargs');
+const fs = require('fs');
 const path = require('path');
-const { LucidLog } = require('lucid-log');
+const { ipcMain } = require('electron');
+const logger = require('./logger');
 
-let logger;
+function getConfigFilePath(configPath) {
+	return path.join(configPath, 'config.json');
+}
+
+function checkConfigFileExistence(configPath) {
+	return fs.existsSync(getConfigFilePath(configPath));
+}
 
 function getConfigFile(configPath) {
-	try {
-		return require(path.join(configPath, 'config.json'));
-	} catch (e) {
-		return null;
+	return require(getConfigFilePath(configPath));
+}
+
+function populateConfigObjectFromFile(configObject, configPath) {
+	if (checkConfigFileExistence(configPath)) {
+		try {
+			configObject.configFile = getConfigFile(configPath);
+			configObject.isConfigFile = true;
+		} catch (e) {
+			configObject.configError = e.message;
+			console.warn('Error in config file, using default values:\n' + configObject.configError);
+		}
+	} else {
+		console.warn('No config file found, using default values');
 	}
 }
 
-function argv(configPath, appVersion) {
-	let configFile = getConfigFile(configPath);
-	const missingConfig = configFile == null;
-	configFile = configFile || {};
-	let config = yargs
+function extractYargConfig(configObject, appVersion) {
+	return yargs
 		.env(true)
-		.config(configFile)
+		.config(configObject.configFile)
 		.version(appVersion)
 		.options({
 			appActiveCheckInterval: {
@@ -48,7 +63,8 @@ function argv(configPath, appVersion) {
 				type: 'number'
 			},
 			appLogLevels: {
-				default: 'error,warn',
+				deprecated: 'Use `logConfig` instead',
+				default: 'error,warn,info,debug',
 				describe: 'Comma separated list of log levels (error,warn,info,debug)',
 				type: 'string'
 			},
@@ -61,6 +77,11 @@ function argv(configPath, appVersion) {
 				default: '*',
 				describe: 'Set auth-server-whitelist value',
 				type: 'string'
+			},
+			awayOnSystemIdle: {
+				default: false,
+				describe: 'Sets the user status as away when system goes idle',
+				type: 'boolean'
 			},
 			chromeUserAgent: {
 				default: `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`,
@@ -97,15 +118,29 @@ function argv(configPath, appVersion) {
 				describe: 'custom CSS styles file location',
 				type: 'string'
 			},
+			emulateWinChromiumPlatform: {
+				default: false,
+				describe: 'Use windows platform information in chromium. This is helpful if MFA app does not support Linux.'
+			},
 			followSystemTheme: {
 				default: false,
 				describe: 'Follow system theme',
+				type: 'boolean'
+			},
+			contextIsolation: {
+				default: false,
+				describe: 'Use contextIsolation on the main BrowserWindow (WIP - Disabling this will break most functionality)',
 				type: 'boolean'
 			},
 			customUserDir: {
 				default: null,
 				describe: 'Custom User Directory so that you can have multiple profiles',
 				type: 'string'
+			},
+			class: {
+				default: null,
+				describe: 'A custom value for the WM_CLASS property',
+				type: 'string',
 			},
 			clearStorage: {
 				default: false,
@@ -126,6 +161,12 @@ function argv(configPath, appVersion) {
 				default: false,
 				describe: 'Close the app when clicking the close (X) cross',
 				type: 'boolean'
+			},
+			defaultNotificationUrgency: {
+				default: 'normal',
+				describe: 'Default urgency for new notifications (low/normal/critical)',
+				type: 'string',
+				choices: ['low', 'normal', 'critical']
 			},
 			defaultURLHandler: {
 				default: '',
@@ -167,19 +208,39 @@ function argv(configPath, appVersion) {
 				describe: 'A flag indicates whether to disable window flashing when there is a notification',
 				type: 'boolean'
 			},
-			partition: {
-				default: 'persist:teams-4-linux',
-				describe: 'BrowserWindow webpreferences partition',
+			disableGlobalShortcuts: {
+				default: [],
+				describe: 'Array of global shortcuts to disable while the app is in focus. See https://www.electronjs.org/docs/latest/api/accelerator for available accelerators to use',
+				type: 'array',
+			},
+			electronCLIFlags: {
+				default: [],
+				describe: "Electron CLI flags",
+				type: 'array'
+			},
+			incomingCallCommand: {
+				default: null,
+				describe: 'Command to execute on an incoming call.',
 				type: 'string'
 			},
-			optInTeamsV2: {
-				default: true,
-				describe: 'Opt in to use Teams V2',
+			incomingCallCommandArgs: {
+				default: [],
+				describe: 'Arguments for the incoming call command.',
+				type: 'array'
+			},
+			isCustomBackgroundEnabled: {
+				default: false,
+				describe: 'A flag indicates whether to enable custom background or not',
 				type: 'boolean'
 			},
-			proxyServer: {
-				default: null,
-				describe: 'Proxy Server with format address:port',
+			logConfig: {
+				default: '{}',
+				describe: 'Electron-log configuration. See logger.js for configurable values. To disable it provide a Falsy value.',
+				type: 'object'
+			},
+			meetupJoinRegEx: {
+				default: '^https:\/\/teams\.(microsoft|live)\.com\/.*(?:meetup-join|channel)',
+				describe: 'Meetup-join and channel regular expression',
 				type: 'string'
 			},
 			menubar: {
@@ -193,10 +254,42 @@ function argv(configPath, appVersion) {
 				describe: 'Start the application minimized',
 				type: 'boolean'
 			},
+			notificationMethod: {
+				default: 'web',
+				describe: 'Notification method to be used by the application (web/electron)',
+				type: 'string',
+				choices: ['web', 'electron']
+			},
 			ntlmV2enabled: {
 				default: 'true',
 				describe: 'Set enable-ntlm-v2 value',
 				type: 'string'
+			},
+			onlineCheckMethod: {
+				default: 'https',
+				describe: 'Type of network test for checking online status.',
+				type: 'string',
+				choices: ['https', 'dns', 'native', 'none']
+			},
+			optInTeamsV2: {
+				default: false,
+				describe: 'Opt in to use Teams V2',
+				type: 'boolean'
+			},
+			partition: {
+				default: 'persist:teams-4-linux',
+				describe: 'BrowserWindow webpreferences partition',
+				type: 'string'
+			},
+			proxyServer: {
+				default: null,
+				describe: 'Proxy Server with format address:port',
+				type: 'string'
+			},
+			sandbox: {
+				default: false,
+				describe: 'Sandbox for the BrowserWindow (WIP - disabling this might break some functionality)',
+				type: 'boolean'
 			},
 			screenLockInhibitionMethod: {
 				default: 'Electron',
@@ -209,33 +302,49 @@ function argv(configPath, appVersion) {
 				describe: 'Array of languages to use with Electron\'s spell checker (experimental)',
 				type: 'array'
 			},
+			ssoBasicAuthUser: {
+				default: '',
+				describe: 'User to use for SSO basic auth.',
+				type: 'string'
+			},
+			ssoBasicAuthPasswordCommand: {
+				default: '',
+				describe: 'Command to execute to retrieve password for SSO basic auth.',
+				type: 'string'
+			},
+			ssoInTuneEnabled: {
+				default: false,
+				describe: 'Enable Single-Sign-On using Microsoft InTune.',
+				type: 'boolean'
+			},
+			ssoInTuneAuthUser: {
+				default: '',
+				describe: 'User (e-mail) to use for InTune SSO.',
+				type: 'string'
+			},
+			trayIconEnabled: {
+				default: true,
+				describe: 'Enable tray icon',
+				type: 'boolean'
+			},
 			url: {
-				default: 'https://teams.microsoft.com/',
+				default: 'https://teams.microsoft.com',
 				describe: 'Microsoft Teams URL',
 				type: 'string'
+			},
+			useMutationTitleLogic: {
+				default: true,
+				describe: 'Use MutationObserver to update counter from title',
+				type: 'boolean'
+			},
+			watchConfigFile: {
+				default: false,
+				describe: 'Watch for changes in the config file and reload the app',
+				type: 'boolean'
 			},
 			webDebug: {
 				default: false,
 				describe: 'Enable debug at start',
-				type: 'boolean'
-			},
-			onlineCheckMethod: {
-				default: 'https',
-				describe: 'Type of network test for checking online status.',
-				type: 'string',
-				choices: ['https', 'dns', 'native', 'none']
-			},
-			incomingCallCommand: {
-				default: null,
-				describe: 'Command to execute on an incoming call.'
-			},
-			incomingCallCommandArgs: {
-				default: [],
-				describe: 'Arguments for the incomming call command.'
-			},
-			awayOnSystemIdle: {
-				default: false,
-				describe: 'Sets the user status as away when system goes idle',
 				type: 'boolean'
 			},
 			secondRingDevice: {
@@ -244,17 +353,52 @@ function argv(configPath, appVersion) {
 			    type: 'string'
 			}
 		})
+		.help()
 		.parse(process.argv.slice(1));
+}
 
-	logger = new LucidLog({
-		levels: config.appLogLevels.split(',')
-	});
-
-	logger.debug('configPath:', configPath);
-	if (missingConfig) {
-		logger.warn('No config file found, using default values');
+function checkUsedDeprecatedValues(configObject,config) {
+	const deprecatedOptions=yargs.getDeprecatedOptions();
+	for(const option in deprecatedOptions) {
+		if(option in configObject.configFile) {
+			const deprecatedWarningMessage=`Option \`${option}\` is deprecated and will be removed in future version. \n ${deprecatedOptions[option]}.`;
+			console.warn(deprecatedWarningMessage);
+			config['warning']=deprecatedWarningMessage;
+		} else {
+			console.debug(`all good with ${option} you aren't using them`);
+		}
 	}
-	logger.debug('configFile:', configFile);
+}
+
+function argv(configPath, appVersion) {
+	const configObject = {
+		configFile: {},
+		configError: null,
+		configWarning: null,
+		isConfigFile: false
+	}
+
+	populateConfigObjectFromFile(configObject, configPath);
+
+	let config = extractYargConfig(configObject, appVersion);
+
+	if (configObject.configError) {
+		config['error'] = configObject.configError;
+	}
+
+	checkUsedDeprecatedValues(configObject, config);
+
+	if (configObject.isConfigFile && config.watchConfigFile) {
+		fs.watch(getConfigFilePath(configPath), (event, filename) => {
+			console.info(`Config file ${filename} changed ${event}. Relaunching app...`);
+			ipcMain.emit('config-file-changed');
+		});
+	}
+
+	logger.init(config.logConfig);
+
+	console.debug('configPath:', configPath);
+	console.debug('configFile:', configObject.configFile);
 
 	return config;
 }

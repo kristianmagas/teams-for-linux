@@ -5,36 +5,23 @@ const application = require('./application');
 const preferences = require('./preferences');
 const help = require('./help');
 const Tray = require('./tray');
-const { LucidLog } = require('lucid-log');
 const { SpellCheckProvider } = require('../spellCheckProvider');
 const connectionManager = require('../connectionManager');
 
 let _Menus_onSpellCheckerLanguageChanged = new WeakMap();
 class Menus {
-	constructor(window, config, iconPath) {
-		/**
-		 * @type {Electron.BrowserWindow}
-		 */
+	constructor(window, configGroup, iconPath) {
 		this.window = window;
 		this.iconPath = iconPath;
-		this.config = config;
+		this.configGroup = configGroup;
 		this.allowQuit = false;
-		this.logger = new LucidLog({
-			levels: config.appLogLevels.split(',')
-		});
 		this.initialize();
 	}
 
-	/**
-	 * @type {(languages:Array<string>)=>void}
-	 */
 	get onSpellCheckerLanguageChanged() {
 		return _Menus_onSpellCheckerLanguageChanged.get(this);
 	}
 
-	/**
-	 * @type {(languages:Array<string>)=>void}
-	 */
 	set onSpellCheckerLanguageChanged(value) {
 		if (typeof value === 'function') {
 			_Menus_onSpellCheckerLanguageChanged.set(this, value);
@@ -55,7 +42,7 @@ class Menus {
 		}) === 0;
 
 		if (clearStorage) {
-			const defSession = session.fromPartition(this.config.partition);
+			const defSession = session.fromPartition(this.configGroup.startupConfig.partition);
 			await defSession.clearStorageData();
 		}
 
@@ -108,7 +95,7 @@ class Menus {
 	initialize() {
 		const appMenu = application(this);
 
-		if (this.config.menubar == 'hidden') {
+		if (this.configGroup.startupConfig.menubar == 'hidden') {
 			this.window.removeMenu();
 		} else {
 			this.window.setMenu(Menu.buildFromTemplate([
@@ -120,8 +107,8 @@ class Menus {
 
 		this.initializeEventHandlers();
 
-		this.tray = new Tray(this.window, appMenu.submenu, this.iconPath, this.config);
-		this.spellCheckProvider = new SpellCheckProvider(this.window, this.logger);
+		this.tray = new Tray(this.window, appMenu.submenu, this.iconPath, this.configGroup.startupConfig);
+		this.spellCheckProvider = new SpellCheckProvider(this.window);
 	}
 
 	initializeEventHandlers() {
@@ -131,13 +118,13 @@ class Menus {
 	}
 
 	onBeforeQuit() {
-		this.logger.debug('before-quit');
+		console.debug('before-quit');
 		this.allowQuit = true;
 	}
 
 	onClose(event) {
-		this.logger.debug('window close');
-		if (!this.allowQuit && !this.config.closeAppOnCross) {
+		console.debug('window close');
+		if (!this.allowQuit && !this.configGroup.startupConfig.closeAppOnCross) {
 			event.preventDefault();
 			this.hide();
 		} else {
@@ -155,9 +142,55 @@ class Menus {
 		ipcMain.once('set-teams-settings', restoreSettingsInternal);
 		this.window.webContents.send('set-teams-settings', JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'teams_settings.json'))));
 	}
+
+	updateMenu() {
+		const appMenu = application(this);
+		this.window.setMenu(Menu.buildFromTemplate([
+			appMenu,
+			preferences(),
+			help(app, this.window),
+		]));
+		this.tray.setContextMenu(appMenu.submenu);
+	}
+
+	toggleDisableNotifications() {
+		this.configGroup.startupConfig.disableNotifications = !this.configGroup.startupConfig.disableNotifications
+		this.configGroup.legacyConfigStore.set('disableNotifications', this.configGroup.startupConfig.disableNotifications);
+		this.updateMenu();
+	}
+
+	toggleDisableMeetingNotifications() {
+		this.configGroup.startupConfig.disableMeetingNotifications = !this.configGroup.startupConfig.disableMeetingNotifications
+		this.configGroup.legacyConfigStore.set('disableMeetingNotifications', this.configGroup.startupConfig.disableMeetingNotifications);
+		this.updateMenu();
+	}
+
+	toggleDisableNotificationSound() {
+		this.configGroup.startupConfig.disableNotificationSound = !this.configGroup.startupConfig.disableNotificationSound
+		this.configGroup.legacyConfigStore.set('disableNotificationSound', this.configGroup.startupConfig.disableNotificationSound);
+		this.updateMenu();
+	}
+
+	toggleDisableNotificationSoundIfNotAvailable() {
+		this.configGroup.startupConfig.disableNotificationSoundIfNotAvailable = !this.configGroup.startupConfig.disableNotificationSoundIfNotAvailable
+		this.configGroup.legacyConfigStore.set('disableNotificationSoundIfNotAvailable', this.configGroup.startupConfig.disableNotificationSoundIfNotAvailable);
+		this.updateMenu();
+	}
+
+	toggleDisableNotificationWindowFlash() {
+		this.configGroup.startupConfig.disableNotificationWindowFlash = !this.configGroup.startupConfig.disableNotificationWindowFlash
+		this.configGroup.legacyConfigStore.set('disableNotificationWindowFlash', this.configGroup.startupConfig.disableNotificationWindowFlash);
+		this.updateMenu();
+	}
+
+	setNotificationUrgency(value) {
+		this.configGroup.startupConfig.defaultNotificationUrgency = value;
+		this.configGroup.legacyConfigStore.set('defaultNotificationUrgency', value);
+		this.updateMenu();
+	}
 }
 
-function saveSettingsInternal(event, arg) {
+function saveSettingsInternal(_event, arg) {
 	fs.writeFileSync(path.join(app.getPath('userData'), 'teams_settings.json'), JSON.stringify(arg));
 	dialog.showMessageBoxSync(this.window, {
 		message: 'Settings have been saved successfully!',
@@ -166,7 +199,7 @@ function saveSettingsInternal(event, arg) {
 	});
 }
 
-function restoreSettingsInternal(event, arg) {
+function restoreSettingsInternal(_event, arg) {
 	if (arg) {
 		dialog.showMessageBoxSync(this.window, {
 			message: 'Settings have been restored successfully!',
@@ -176,11 +209,8 @@ function restoreSettingsInternal(event, arg) {
 	}
 }
 
-/**
- * @param {Menus} menus 
- */
 function assignContextMenuHandler(menus) {
-	return (event, params) => {
+	return (_event, params) => {
 		const menu = new Menu();
 
 		// Add each spelling suggestion
@@ -195,11 +225,6 @@ function assignContextMenuHandler(menus) {
 	};
 }
 
-/**
- * @param {object} params 
- * @param {Electron.Menu} menu 
- * @param {Menus} menus 
- */
 function assignReplaceWordHandler(params, menu, menus) {
 	for (const suggestion of params.dictionarySuggestions) {
 		menu.append(new MenuItem({
@@ -209,11 +234,6 @@ function assignReplaceWordHandler(params, menu, menus) {
 	}
 }
 
-/**
- * @param {object} params 
- * @param {Electron.Menu} menu 
- * @param {Menus} menus 
- */
 function assignAddToDictionaryHandler(params, menu, menus) {
 	if (params.misspelledWord) {
 		menu.append(
@@ -233,10 +253,6 @@ function assignAddToDictionaryHandler(params, menu, menus) {
 	addTextEditMenuItems(params, menu, menus);
 }
 
-/**
- * @param {Electron.Menu} menu 
- * @param {Menus} menus 
- */
 function addTextEditMenuItems(params, menu, menus) {
 	if (params.isEditable) {
 		buildEditContextMenu(menu, menus);
@@ -272,10 +288,6 @@ function buildEditContextMenu(menu, menus) {
 	addSpellCheckMenuItems(menu, menus);
 }
 
-/**
- * @param {Electron.Menu} menu 
- * @param {Menus} menus 
- */
 function addSpellCheckMenuItems(menu, menus) {
 	menu.append(
 		new MenuItem({
@@ -291,9 +303,6 @@ function addSpellCheckMenuItems(menu, menus) {
 	);
 }
 
-/**
- * @param {Menus} menus 
- */
 function createSpellCheckLanguagesMenu(menus) {
 	const activeLanguages = menus.window.webContents.session.getSpellCheckerLanguages();
 	const splChkMenu = new Menu();
@@ -315,10 +324,6 @@ function createSpellCheckLanguagesMenu(menus) {
 	return splChkMenu;
 }
 
-/**
- * @param {Electron.Menu} menu 
- * @param {Menus} menus 
- */
 function createSpellCheckLanguagesNoneMenuEntry(menu, menus) {
 	menu.append(
 		new MenuItem({
@@ -333,12 +338,6 @@ function createSpellCheckLanguagesNoneMenuEntry(menu, menus) {
 	);
 }
 
-/**
- * @param {{language:string,code:string}} language 
- * @param {Array<string>} activeLanguages 
- * @param {Menus} menus 
- * @returns 
- */
 function createLanguageMenuItem(language, activeLanguages, menus) {
 	return new MenuItem({
 		label: language.language,
@@ -349,10 +348,6 @@ function createLanguageMenuItem(language, activeLanguages, menus) {
 	});
 }
 
-/**
- * @param {MenuItem} item 
- * @param {Menus} menus 
- */
 function chooseLanguage(item, menus) {
 	const activeLanguages = menus.window.webContents.session.getSpellCheckerLanguages();
 	if (item) {
@@ -370,10 +365,6 @@ function chooseLanguage(item, menus) {
 	}
 }
 
-/**
- * @param {Array<string>} list 
- * @param {string} item 
- */
 function removeFromList(list, item) {
 	const itemIndex = list.findIndex(l => l == item);
 	if (itemIndex >= 0) {
@@ -383,10 +374,6 @@ function removeFromList(list, item) {
 	return list;
 }
 
-/**
- * @param {Array<string>} list 
- * @param {string} item 
- */
 function addToList(list, item) {
 	const itemIndex = list.findIndex(l => l == item);
 	if (itemIndex < 0) {
